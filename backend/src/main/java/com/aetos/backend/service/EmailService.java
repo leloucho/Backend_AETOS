@@ -29,22 +29,26 @@ public class EmailService {
     public void sendVerificationEmail(String toEmail, String token) {
         String subject = "Confirma tu cuenta AETOS";
         String confirmUrl = appUrl + "/verify?token=" + token;
-        String message = "Bienvenido a AETOS!\n\n"
+        String text = "Bienvenido a AETOS!\n\n"
                 + "Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n"
                 + confirmUrl + "\n\n"
                 + "Este enlace expirará en 24 horas.\n\n"
                 + "Bendiciones!";
-
-        SimpleMailMessage email = new SimpleMailMessage();
-        email.setFrom(fromEmail);
-        email.setTo(toEmail);
-        email.setSubject(subject);
-        email.setText(message);
-
         try {
-            mailSender.send(email);
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+            if (fromEmail != null && !fromEmail.trim().isEmpty()) {
+                helper.setFrom(fromEmail.trim());
+            }
+            helper.setTo(toEmail.trim());
+            helper.setSubject(subject);
+            helper.setText(text, false);
+            mailSender.send(mimeMessage);
+            System.out.println("✅ Email enviado exitosamente a " + toEmail);
+        } catch (MessagingException e) {
+            System.err.println("❌ Error al preparar email de verificación: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error al enviar email: " + e.getMessage());
+            System.err.println("❌ Error al enviar email de verificación: " + e.getMessage());
         }
     }
 
@@ -52,24 +56,28 @@ public class EmailService {
     public void sendPasswordResetEmail(String toEmail, String token) {
         String subject = "Restablece tu contraseña - AETOS";
         String resetUrl = appUrl + "/reset-password?token=" + token;
-        String message = "Hola,\n\n"
+        String text = "Hola,\n\n"
                 + "Recibimos una solicitud para restablecer tu contraseña de AETOS.\n\n"
                 + "Haz clic en el siguiente enlace para crear una nueva contraseña:\n"
                 + resetUrl + "\n\n"
                 + "Este enlace expirará en 1 hora.\n\n"
                 + "Si no solicitaste este cambio, ignora este correo.\n\n"
                 + "Bendiciones!";
-
-        SimpleMailMessage email = new SimpleMailMessage();
-        email.setFrom(fromEmail);
-        email.setTo(toEmail);
-        email.setSubject(subject);
-        email.setText(message);
-
         try {
-            mailSender.send(email);
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+            if (fromEmail != null && !fromEmail.trim().isEmpty()) {
+                helper.setFrom(fromEmail.trim());
+            }
+            helper.setTo(toEmail.trim());
+            helper.setSubject(subject);
+            helper.setText(text, false);
+            mailSender.send(mimeMessage);
+            System.out.println("✅ Email de recuperación enviado a " + toEmail);
+        } catch (MessagingException e) {
+            System.err.println("❌ Error al preparar email de recuperación: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error al enviar email de recuperación: " + e.getMessage());
+            System.err.println("❌ Error al enviar email de recuperación: " + e.getMessage());
         }
     }
 
