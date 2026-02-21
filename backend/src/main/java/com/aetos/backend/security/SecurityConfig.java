@@ -27,16 +27,16 @@ public class SecurityConfig {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/admin-change/**").permitAll()
-                        .requestMatchers("/admin/**").hasAuthority("ADMIN")
-                        .requestMatchers("/leader/**").hasAnyAuthority("ADMIN", "LIDER")
-                        .requestMatchers("/ranking").permitAll()
-                        .requestMatchers("/notifications/active").authenticated()
-                        .requestMatchers("/resources/thumbnail/**").permitAll() // Thumbnails públicos
-                        .requestMatchers("/resources/download/**").authenticated() // Downloads requieren auth
-                        .requestMatchers("/resources/**").authenticated() // Otros recursos requieren auth
-                        .requestMatchers("/uploads/**").permitAll() // Permitir acceso a archivos subidos
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/admin-change/**").permitAll()
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/leader/**").hasAnyAuthority("ADMIN", "LIDER")
+                        .requestMatchers("/api/ranking").permitAll()
+                        .requestMatchers("/api/notifications/active").authenticated()
+                        .requestMatchers("/api/resources/thumbnail/**").permitAll()
+                        .requestMatchers("/api/resources/download/**").authenticated()
+                        .requestMatchers("/api/resources/**").authenticated()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/", "/*.js", "/*.css", "/*.ico", "/assets/**").permitAll()
                         .anyRequest().authenticated()
                 )
