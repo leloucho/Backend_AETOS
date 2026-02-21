@@ -53,6 +53,10 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         var config = new org.springframework.web.cors.CorsConfiguration();
+        config.setAllowedOrigins(java.util.List.of(
+        "https://harmonious-choux-a59a28.netlify.app", // Tu URL actual
+        "http://localhost:4200" // Para pruebas locales
+        ));
         config.addAllowedOriginPattern("*");
         config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(java.util.List.of("*"));
