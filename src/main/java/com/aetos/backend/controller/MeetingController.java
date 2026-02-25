@@ -38,62 +38,36 @@ public class MeetingController {
 
     // Only leader or admin should call this (secured by role in SecurityConfig)
     @PostMapping("/leader/meetings")
-    public ResponseEntity<?> createMeeting(Authentication auth, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> createMeeting(Authentication auth, @RequestBody(required = false) Map<String, Object> body) {
         String email = (String) auth.getPrincipal();
         User creator = userRepository.findByEmail(email).orElse(null);
         if (creator == null || (creator.getRol() != Role.LIDER && creator.getRol() != Role.ADMIN)) {
             return ResponseEntity.status(403).body(Map.of("error", "Only leader or admin can create meetings"));
         }
+
+        boolean force = false;
+        try {
+            Object f = (body != null) ? body.get("force") : null;
+            if (f instanceof Boolean) force = (Boolean) f;
+            else if (f instanceof String) force = Boolean.parseBoolean((String) f);
+        } catch (Exception ignore) {}
         
-        // Buscar programa activo AHORA (mismo día y horario actual)
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = now.toLocalDate();
-        
-        var programs = programRepository.findAll();
-        ProgramWeekly currentProgram = programs.stream()
-                .filter(p -> {
-                    // Debe ser del mismo día
-                    LocalDate programDate = p.getWeekStart();
-                    if (!programDate.equals(today)) {
-                        return false;
-                    }
-                    
-                    // Verificar que estemos en el horario del programa
-                    try {
-                        String[] horaInicio = p.getHora().split(":");
-                        String[] horaFin = p.getHoraFin().split(":");
-                        
-                        int horaActual = now.getHour();
-                        int minutoActual = now.getMinute();
-                        int horaInicioInt = Integer.parseInt(horaInicio[0]);
-                        int minutoInicioInt = Integer.parseInt(horaInicio[1]);
-                        int horaFinInt = Integer.parseInt(horaFin[0]);
-                        int minutoFinInt = Integer.parseInt(horaFin[1]);
 
-                        int minutosActuales = horaActual * 60 + minutoActual;
-                        int minutosInicio = horaInicioInt * 60 + minutoInicioInt;
-                        int minutosFin = horaFinInt * 60 + minutoFinInt;
+        // Deactivate any stale active meetings from previous days
+        var staleActives = meetingRepository.findAll().stream()
+                .filter(Meeting::isActiva)
+                .filter(m -> !m.getFecha().toLocalDate().equals(today))
+                .toList();
+        staleActives.forEach(mm -> { mm.setActiva(false); meetingRepository.save(mm); });
 
-                        return minutosActuales >= minutosInicio && minutosActuales <= minutosFin;
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
-                .findFirst()
-                .orElse(null);
-
-        if (currentProgram == null) {
-            return ResponseEntity.status(400).body(Map.of(
-                "error", "No hay programa activo en este momento. Verifique que haya un programa configurado para hoy y que esté dentro del horario programado."
-            ));
-        }
-        
-        // Check if there's already an active meeting for today's program
+        // If there's an active meeting for today, reuse it and auto-register leader if needed
         var existingMeeting = meetingRepository.findAll().stream()
                 .filter(Meeting::isActiva)
                 .filter(m -> m.getFecha().toLocalDate().equals(today))
+                .sorted((a,b) -> b.getFecha().compareTo(a.getFecha()))
                 .findFirst();
-        
         if (existingMeeting.isPresent()) {
             Meeting m = existingMeeting.get();
             boolean leaderAlready = attendanceRepository.findAll().stream()
@@ -109,25 +83,53 @@ public class MeetingController {
             System.out.println("Returning existing active meeting. id=" + m.getId() + ", token=" + m.getTokenQr());
             return ResponseEntity.ok(m);
         }
-        
-        // Create new meeting only if none exists for today
+
+        if (!force) {
+            // Validate that there is a program active now (today and within schedule)
+            var programs = programRepository.findAll();
+            ProgramWeekly currentProgram = programs.stream()
+                    .filter(p -> {
+                        LocalDate programDate = p.getWeekStart();
+                        if (!programDate.equals(today)) return false;
+                        try {
+                            String[] horaInicio = p.getHora().split(":");
+                            String[] horaFin = p.getHoraFin().split(":");
+                            int minutosActuales = now.getHour() * 60 + now.getMinute();
+                            int minutosInicio = Integer.parseInt(horaInicio[0]) * 60 + Integer.parseInt(horaInicio[1]);
+                            int minutosFin = Integer.parseInt(horaFin[0]) * 60 + Integer.parseInt(horaFin[1]);
+                            return minutosActuales >= minutosInicio && minutosActuales <= minutosFin;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
+                    .findFirst()
+                    .orElse(null);
+            if (currentProgram == null) {
+                return ResponseEntity.status(400).body(Map.of(
+                    "error", "No hay programa activo en este momento. Verifique que haya un programa configurado para hoy y que esté dentro del horario programado."
+                ));
+            }
+        } else {
+            System.out.println("⚠️ Forzando activación de reunión por solicitud del líder " + email);
+        }
+
+        // Create new meeting
         Meeting m = Meeting.builder()
                 .fecha(LocalDateTime.now())
                 .tokenQr(UUID.randomUUID().toString())
                 .activa(true)
                 .build();
         meetingRepository.save(m);
-        
-        // Automatically register attendance for the leader who created the meeting
+
+        // Auto-register leader attendance
         Attendance leaderAttendance = Attendance.builder()
                 .user(creator)
                 .meeting(m)
                 .timestamp(LocalDateTime.now())
                 .build();
         attendanceRepository.save(leaderAttendance);
-        
+
         System.out.println("✅ Líder registrado automáticamente: " + creator.getNombre());
-        
         return ResponseEntity.ok(m);
     }
 
@@ -268,15 +270,16 @@ public class MeetingController {
             return ResponseEntity.status(403).body(Map.of("error", "Only leader or admin can view this"));
         }
 
-        var activeMeeting = meetingRepository.findAll().stream()
+        var actives = meetingRepository.findAll().stream()
                 .filter(Meeting::isActiva)
-                .findFirst();
-
-        if (activeMeeting.isEmpty()) {
+                .sorted((a,b) -> b.getFecha().compareTo(a.getFecha()))
+                .toList();
+        if (actives.isEmpty()) {
             return ResponseEntity.ok(Map.of());
         }
-
-        return ResponseEntity.ok(activeMeeting.get());
+        Meeting latest = actives.get(0);
+        actives.stream().skip(1).forEach(m -> { m.setActiva(false); meetingRepository.save(m); });
+        return ResponseEntity.ok(latest);
     }
 
     // Get attendance count for a meeting
@@ -319,18 +322,17 @@ public class MeetingController {
         
         System.out.println("SUCCESS: User has permission (LIDER or ADMIN)");
 
-        var activeMeeting = meetingRepository.findAll().stream()
+        var actives = meetingRepository.findAll().stream()
                 .filter(Meeting::isActiva)
-                .findFirst();
-
-        if (activeMeeting.isEmpty()) {
+                .sorted((a,b) -> b.getFecha().compareTo(a.getFecha()))
+                .toList();
+        if (actives.isEmpty()) {
             System.out.println("No active meeting found");
             return ResponseEntity.ok(Map.of("attendances", java.util.List.of()));
         }
-        
-        System.out.println("Active meeting found: " + activeMeeting.get().getId());
-
-        Meeting meeting = activeMeeting.get();
+        Meeting meeting = actives.get(0);
+        actives.stream().skip(1).forEach(m -> { m.setActiva(false); meetingRepository.save(m); });
+        System.out.println("Active meeting found: " + meeting.getId());
         
         // Check if meeting is expired based on program schedule
         LocalDateTime now = LocalDateTime.now();
@@ -430,15 +432,15 @@ public class MeetingController {
             return ResponseEntity.status(403).body(Map.of("error", "Only leader or admin can view this"));
         }
 
-        var activeMeeting = meetingRepository.findAll().stream()
+        var actives = meetingRepository.findAll().stream()
                 .filter(Meeting::isActiva)
-                .findFirst();
-
-        if (activeMeeting.isEmpty()) {
+                .sorted((a,b) -> b.getFecha().compareTo(a.getFecha()))
+                .toList();
+        if (actives.isEmpty()) {
             return ResponseEntity.ok(Map.of("users", java.util.List.of(), "meeting", null));
         }
-
-        Meeting meeting = activeMeeting.get();
+        Meeting meeting = actives.get(0);
+        actives.stream().skip(1).forEach(m -> { m.setActiva(false); meetingRepository.save(m); });
         
         // Check expiration using the last end time of today's programs
         LocalDate today = LocalDate.now();
@@ -617,15 +619,15 @@ public class MeetingController {
             return ResponseEntity.status(401).body(Map.of("error", "User not found"));
         }
 
-        var activeMeeting = meetingRepository.findAll().stream()
+        var actives = meetingRepository.findAll().stream()
                 .filter(Meeting::isActiva)
-                .findFirst();
-
-        if (activeMeeting.isEmpty()) {
+                .sorted((a,b) -> b.getFecha().compareTo(a.getFecha()))
+                .toList();
+        if (actives.isEmpty()) {
             return ResponseEntity.ok(Map.of("hasActiveMeeting", false));
         }
-
-        Meeting meeting = activeMeeting.get();
+        Meeting meeting = actives.get(0);
+        actives.stream().skip(1).forEach(m -> { m.setActiva(false); meetingRepository.save(m); });
         
         // Check expiration against today's programs (use last end time)
         LocalDate today = LocalDate.now();
