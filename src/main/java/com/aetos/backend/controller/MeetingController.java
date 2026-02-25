@@ -594,18 +594,9 @@ public class MeetingController {
         Meeting meeting = actives.get(0);
         actives.stream().skip(1).forEach(m -> { m.setActiva(false); meetingRepository.save(m); });
         
-        // Check expiration against today's programs (use last end time)
-        LocalDate today = LocalDate.now();
-        var todays = programRepository.findAll().stream()
-                .filter(p -> p.getWeekStart().equals(today))
-                .toList();
-        LocalTime nowTime = LocalDateTime.now().toLocalTime();
-        LocalTime latestEnd = todays.stream().map(p -> {
-            try { return LocalTime.parse(p.getHoraFin()); } catch (Exception e) { return null; }
-        }).filter(t -> t != null).max(LocalTime::compareTo).orElse(null);
-        if (latestEnd != null && nowTime.isAfter(latestEnd)) {
-            meeting.setActiva(false);
-            meetingRepository.save(meeting);
+        // Expiration by TTL (meeting creation time + 120 minutes)
+        LocalDateTime ttl = meeting.getFecha().plusMinutes(120);
+        if (LocalDateTime.now().isAfter(ttl)) {
             return ResponseEntity.ok(Map.of("hasActiveMeeting", false, "expired", true));
         }
 
@@ -615,9 +606,6 @@ public class MeetingController {
                               a.getUser().getId().equals(user.getId()));
 
         String expiresAt = meeting.getFecha().plusMinutes(120).toString();
-        if (latestEnd != null) {
-            expiresAt = LocalDateTime.of(meeting.getFecha().toLocalDate(), latestEnd).toString();
-        }
 
         return ResponseEntity.ok(Map.of(
             "hasActiveMeeting", true,
