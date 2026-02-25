@@ -372,48 +372,20 @@ public class MeetingController {
         
         System.out.println("📋 Total asistencias encontradas: " + attendances.size());
         
-        // Check if meeting is expired (but still return attendances)
+        // Check expiration by TTL: meeting time + 120 minutes (ignore schedule to support forced meetings)
         boolean isExpired = false;
         try {
-            LocalTime currentTime = now.toLocalTime();
-            LocalTime latestEnd = todaysPrograms.stream()
-                    .map(p -> {
-                        try { return LocalTime.parse(p.getHoraFin()); } catch (Exception e) { return null; }
-                    })
-                    .filter(t -> t != null)
-                    .max(LocalTime::compareTo)
-                    .orElse(null);
-            if (latestEnd != null) {
-                System.out.println("⏰ Verificando expiración (última hora fin de hoy): " + latestEnd + ", ahora: " + currentTime);
-                if (currentTime.isAfter(latestEnd)) {
-                    meeting.setActiva(false);
-                    meetingRepository.save(meeting);
-                    isExpired = true;
-                }
-            } else {
-                System.out.println("⚠️ No hay programas para hoy");
+            LocalDateTime ttl = meeting.getFecha().plusMinutes(120);
+            System.out.println("⏰ Verificando expiración por TTL: expira a " + ttl + ", ahora: " + now);
+            if (now.isAfter(ttl)) {
+                isExpired = true;
             }
         } catch (Exception e) {
-            System.out.println("❌ Error verificando expiración: " + e.getMessage());
+            System.out.println("❌ Error verificando expiración (TTL): " + e.getMessage());
         }
 
-        // Calculate expiration time using the last end time of today's programs
-        String expiresAt = meeting.getFecha().plusMinutes(120).toString(); // Default fallback
-        try {
-            LocalTime latestEnd = todaysPrograms.stream()
-                    .map(p -> {
-                        try { return LocalTime.parse(p.getHoraFin()); } catch (Exception e) { return null; }
-                    })
-                    .filter(t -> t != null)
-                    .max(LocalTime::compareTo)
-                    .orElse(null);
-            if (latestEnd != null) {
-                LocalDate meetingDate = meeting.getFecha().toLocalDate();
-                expiresAt = LocalDateTime.of(meetingDate, latestEnd).toString();
-            }
-        } catch (Exception e) {
-            // keep default
-        }
+        // Expiration time based on TTL
+        String expiresAt = meeting.getFecha().plusMinutes(120).toString();
         
         return ResponseEntity.ok(Map.of(
             "attendances", attendances, 
@@ -448,19 +420,12 @@ public class MeetingController {
                 .filter(p -> p.getWeekStart().equals(today))
                 .toList();
         try {
-            LocalTime nowTime = LocalDateTime.now().toLocalTime();
-            LocalTime latestEnd = todays.stream()
-                    .map(p -> { try { return LocalTime.parse(p.getHoraFin()); } catch (Exception e) { return null; } })
-                    .filter(t -> t != null)
-                    .max(LocalTime::compareTo)
-                    .orElse(null);
-            if (latestEnd != null && nowTime.isAfter(latestEnd)) {
-                meeting.setActiva(false);
-                meetingRepository.save(meeting);
+            LocalDateTime ttl = meeting.getFecha().plusMinutes(120);
+            if (LocalDateTime.now().isAfter(ttl)) {
                 return ResponseEntity.ok(Map.of("expired", true, "users", java.util.List.of(), "meeting", meeting));
             }
         } catch (Exception e) {
-            System.out.println("❌ Error verificando horario: " + e.getMessage());
+            System.out.println("❌ Error verificando TTL: " + e.getMessage());
         }
 
         // Get all attendances for this meeting
@@ -496,7 +461,7 @@ public class MeetingController {
                 "fecha", meeting.getFecha().toString(),
                 "activa", meeting.isActiva()
             ),
-            "expiresAt", meeting.getFecha().plusMinutes(5).toString()
+            "expiresAt", meeting.getFecha().plusMinutes(120).toString()
         ));
     }
 
