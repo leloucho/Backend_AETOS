@@ -49,7 +49,7 @@ public class ResourceController {
             System.err.println("Error creando directorios: " + e.getMessage());
         }
     }
-    
+    //
     private boolean canEditOrDeleteResource(String userEmail, Resource resource) {
         boolean isOwner = resource.getUsuarioEmail() != null && resource.getUsuarioEmail().equals(userEmail);
         if (isOwner) {
