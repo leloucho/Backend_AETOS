@@ -169,7 +169,7 @@ public class ProfileController {
             }
             
             // Actualizar URL en el usuario
-            String photoUrl = "/uploads/profiles/" + filename;
+            String photoUrl = "/api/uploads/profiles/" + filename;
             user.setPhotoUrl(photoUrl);
             userRepository.save(user);
             

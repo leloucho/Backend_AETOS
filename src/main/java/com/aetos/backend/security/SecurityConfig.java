@@ -39,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/resources/download/**").authenticated()
                         .requestMatchers("/api/resources/**").authenticated()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/api/uploads/**").permitAll()
                         .requestMatchers("/", "/*.js", "/*.css", "/*.ico", "/assets/**").permitAll()
                         .anyRequest().authenticated()
                 )

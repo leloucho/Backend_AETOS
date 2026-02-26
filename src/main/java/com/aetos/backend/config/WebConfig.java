@@ -17,6 +17,8 @@ public class WebConfig implements WebMvcConfigurer {
         String normalized = base.endsWith("/") ? base : base + "/";
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + normalized);
+        registry.addResourceHandler("/api/uploads/**")
+                .addResourceLocations("file:" + normalized);
         System.out.println("✅ Directorio de uploads configurado en: " + base);
     }
 }
