@@ -287,7 +287,11 @@ public class ResourceController {
         try {
             Path thumbnailPath = Paths.get(thumbnailDir + filename);
             if (!Files.exists(thumbnailPath)) {
-                return ResponseEntity.status(404).build();
+                try {
+                    generatePlaceholderThumbnail("FILE", thumbnailPath.toString());
+                } catch (IOException e) {
+                    return ResponseEntity.status(404).build();
+                }
             }
             
             byte[] imageContent = Files.readAllBytes(thumbnailPath);
