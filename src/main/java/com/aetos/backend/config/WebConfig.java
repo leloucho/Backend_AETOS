@@ -11,13 +11,12 @@ public class WebConfig implements WebMvcConfigurer {
     
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Obtener directorio actual del usuario para almacenamiento persistente
-        String uploadsPath = Paths.get(System.getProperty("user.home"), "aetos-uploads").toAbsolutePath().toString();
-        
-        // Servir archivos estáticos desde ~/aetos-uploads/
+        String base = System.getenv("UPLOADS_DIR");
+        if (base == null || base.isBlank()) base = System.getenv("RESOURCES_DIR");
+        if (base == null || base.isBlank()) base = Paths.get(System.getProperty("user.home"), "aetos-uploads").toAbsolutePath().toString();
+        String normalized = base.endsWith("/") ? base : base + "/";
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + uploadsPath + "/");
-        
-        System.out.println("✅ Directorio de uploads configurado en: " + uploadsPath);
+                .addResourceLocations("file:" + normalized);
+        System.out.println("✅ Directorio de uploads configurado en: " + base);
     }
 }

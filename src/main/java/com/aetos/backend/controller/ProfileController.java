@@ -134,8 +134,10 @@ public class ProfileController {
         }
         
         try {
-            // Usar directorio persistente en home del usuario
-            String uploadsDir = Paths.get(System.getProperty("user.home"), "aetos-uploads", "profiles").toString();
+            String base = System.getenv("UPLOADS_DIR");
+            if (base == null || base.isBlank()) base = System.getenv("RESOURCES_DIR");
+            if (base == null || base.isBlank()) base = Paths.get(System.getProperty("user.home"), "aetos-uploads").toString();
+            String uploadsDir = Paths.get(base, "profiles").toString();
             File directory = new File(uploadsDir);
             if (!directory.exists()) {
                 directory.mkdirs();
