@@ -31,8 +31,11 @@ public class ResourceController {
 
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
-    private final String uploadDir = System.getProperty("user.home") + "/aetos-resources/";
-    private final String thumbnailDir = System.getProperty("user.home") + "/aetos-resources/thumbnails/";
+    private final String uploadBase = (System.getenv("RESOURCES_DIR") != null && !System.getenv("RESOURCES_DIR").isBlank())
+            ? System.getenv("RESOURCES_DIR")
+            : System.getProperty("user.home") + "/aetos-resources";
+    private final String uploadDir = uploadBase.endsWith("/") ? uploadBase : uploadBase + "/";
+    private final String thumbnailDir = uploadDir + "thumbnails/";
 
     public ResourceController(ResourceRepository resourceRepository, UserRepository userRepository) {
         this.resourceRepository = resourceRepository;
